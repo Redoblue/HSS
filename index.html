@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <title>Snake Game</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <script>
+        let snake;
+        let food;
+        let letters = "山不在高，有仙则名。水不在深，有龙则灵。斯是陋室，惟吾德馨。苔痕上阶绿，草色入帘青。谈笑有鸿儒，往来无白丁。可以调素琴，阅金经。无丝竹之乱耳，无案牍之劳形。南阳诸葛庐，西蜀子云亭。孔子云：何陋之有？".split("");
+        let currentLetterIndex = 0;
+        let brickSize = 20;
+        let letterTrail = [];
+        let freeze = false;
+        let rows = 0;
+        let cols = 0;
+        let dropRoute = {};
+        let collide = false;
+
+        function setup() {
+            frameRate(10); // Move frameRate here
+            createCanvas(1000, 600);
+            cols = floor((width - brickSize * 2) / brickSize);
+            rows = floor((height - brickSize * 2) / brickSize);
+            snake = new Snake();
+            food = createFood();
+        }
+
+        function draw() {
+            background(220);
+
+            // Draw bricks on entire canvas
+            for (let i = 0; i < width / brickSize; i++) {
+                for (let j = 0; j < height / brickSize; j++) {
+                    if ((i + j) % 2 === 0) {
+                        fill(200);
+                    } else {
+                        fill(220);
+                    }
+                    noStroke();
+                    rect(i * brickSize, j * brickSize, brickSize, brickSize);
+                }
+            }
+
+            // Draw bricks on outer walls
+            for (let i = 0; i < width / brickSize; i++) {
+                fill(150);
+                noStroke();
+                rect(i * brickSize, 0, brickSize, brickSize);
+                rect(i * brickSize, height - brickSize, brickSize, brickSize);
+            }
+            for (let i = 0; i < height / brickSize; i++) {
+                fill(150);
+                noStroke();
+                rect(0, i * brickSize, brickSize, brickSize);
+                rect(width - brickSize, i * brickSize, brickSize, brickSize);
+            }
+
+            // Draw letter trail
+            for (let i = 0; i < letterTrail.length; i++) {
+                let x = letterTrail[i][0];
+                let y = letterTrail[i][1];
+                let letter = letterTrail[i][2];
+
+                drawFoodTrail(x, y, letter);
+            }
+
+            snake.move();
+            if (snake.checkCollision()) {
+                frameRate(5);
+                collide = true;
+                // noLoop();
+                //     if (confirm("撞到了，下次努力哟！是否重新开始？")) {
+                //         resetGame();
+                //     }
+            }
+            snake.update();
+            snake.display();
+
+            if (snake.eat(food)) {
+                // Add letter to trail
+                letterTrail.push([food.x, food.y, letters[currentLetterIndex]]);
+
+                // Increment letter index
+                currentLetterIndex++;
+                if (currentLetterIndex >= letters.length) {
+                    // Freeze input
+                    freeze = true;
+
+                    // 掉落路径
+                    for (let i = 0; i < letterTrail.length; i++) {
+                        let x = letterTrail[i][0];
+                        let y = letterTrail[i][1];
+                        let letter = letterTrail[i][2];
+
+                        let tx = floor((cols - letters.length) / 2) + i;
+                        let ty = floor(rows / 2);
+                        if (i >= 17) tx += 3;
+                        else if (i >= 9) tx += 2;
+                        else if (i >= 4) tx += 1;
+
+                        dropRoute[i] = [];
+                        if (tx > x) {
+                            for (let j = x; j <= tx; j++) {
+                                dropRoute[i].push([j, y, letter]);
+                            }
+                        } else if (tx < x) {
+                            for (let j = x; j >= tx; j--) {
+                                dropRoute[i].push([j, y, letter]);
+                            }
+                        }
+                        if (ty > y) {
+                            for (let j = y; j <= ty; j++) {
+                                dropRoute[i].push([tx, j, letter]);
+                            }
+                        } else if (ty < y) {
+                            for (let j = y; j >= ty; j--) {
+                                dropRoute[i].push([tx, j, letter]);
+                            }
+                        }
+                    }
+                }
+
+                // Create new food
+                if (!freeze) {
+                    food = createFood();
+                }
+            }
+
+            if (!freeze)
+                drawFood();
+            else if (collide) {
+                // Drop letters
+                for (let i = 0; i < letters.length; i++) {
+                    letterTrail.splice(i, 1);
+                    if (dropRoute[i].length > 0) {
+                        let pos;
+                        if (dropRoute[i].length > 1) {
+                            pos = dropRoute[i].shift();
+                        } else {
+                            pos = dropRoute[i][0];
+                        }
+                        let x = pos[0];
+                        let y = pos[1];
+                        let letter = pos[2];
+
+                        drawFoodTrail(x, y, letter);
+                    }
+                }
+            }
+        }
+
+        function drawFood() {
+            fill(255, 0, 0);
+            noStroke();
+            rect(food.x * brickSize, food.y * brickSize, brickSize, brickSize);
+
+            fill(255, 255, 0);
+            textSize(brickSize * 0.8); // Adjusted size
+            textAlign(CENTER, CENTER);
+            text(letters[currentLetterIndex], food.x * brickSize + brickSize / 2, food.y * brickSize + brickSize / 2 + 2);
+        }
+
+        function drawFoodTrail(x, y, letter) {
+            fill(255, 255, 200);
+            noStroke();
+            rect(x * brickSize, y * brickSize, brickSize, brickSize);
+
+            fill(255, 200, 200);
+            textSize(brickSize * 0.8); // Adjusted size
+            textAlign(CENTER, CENTER);
+            text(letter, x * brickSize + brickSize / 2, y * brickSize + brickSize / 2 + 2);
+        }
+
+        function keyPressed() {
+            if (keyCode === UP_ARROW && snake.ySpeed === 0 && !freeze) {
+                snake.setDirection(0, -1);
+            } else if (keyCode === DOWN_ARROW && snake.ySpeed === 0 && !freeze) {
+                snake.setDirection(0, 1);
+            } else if (keyCode === LEFT_ARROW && snake.xSpeed === 0 && !freeze) {
+                snake.setDirection(-1, 0);
+            } else if (keyCode === RIGHT_ARROW && snake.xSpeed === 0 && !freeze) {
+                snake.setDirection(1, 0);
+            }
+        }
+
+        function createFood() {
+            let foodPos;
+            do {
+                foodPos = createVector(floor(random(cols)), floor(random(rows))).add(1, 1);
+            } while (foodPos.x < 2
+            || foodPos.x > cols - 2
+            || foodPos.y < 2
+            || foodPos.y > rows - 2
+                || foodPos.y === floor(rows / 2));
+
+            return foodPos;
+        }
+
+        function resetGame() {
+            loop();
+            snake = new Snake();
+            currentLetterIndex = 0;
+            letterTrail = [];
+        }
+
+        class Snake {
+            constructor() {
+                this.body = [];
+                this.body[0] = createVector(floor(cols / 2), floor(rows / 2));
+                this.xSpeed = 1;
+                this.ySpeed = 0;
+            }
+
+            setDirection(x, y) {
+                if (collide) return;
+
+                this.xSpeed = x;
+                this.ySpeed = y;
+            }
+
+            move() {
+                if (collide) return;
+
+                let head = this.body[this.body.length - 1].copy();
+                this.body.shift();
+                head.x += this.xSpeed;
+                head.y += this.ySpeed;
+                this.body.push(head);
+            }
+
+            eat(pos) {
+                let head = this.body[this.body.length - 1];
+                if (head.x === pos.x && head.y === pos.y) {
+                    this.body.push(createVector(pos.x, pos.y));
+                    return true;
+                }
+                return false;
+            }
+
+            checkCollision() {
+                let head = this.body[this.body.length - 1];
+                if (head.x >= cols - 1 || head.x < 1 || head.y >= rows - 1 || head.y < 1) {
+                    return true;
+                }
+                for (let i = 0; i < this.body.length - 1; i++) {
+                    let part = this.body[i];
+                    if (head.x === part.x && head.y === part.y) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            update() {
+                // You can add more logic for updates if needed
+            }
+
+            display() {
+                for (let i = 0; i < this.body.length; i++) {
+                    fill(50, 50, 50);
+                    noStroke();
+                    rect(this.body[i].x * brickSize, this.body[i].y * brickSize, brickSize, brickSize);
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
